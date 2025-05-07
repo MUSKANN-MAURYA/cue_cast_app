@@ -1,37 +1,60 @@
-import 'package:cue_cast_app/pages/acting.dart';
-import 'package:cue_cast_app/pages/modelling.dart';
-import 'package:cue_cast_app/pages/music.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'package:cue_cast_app/pages/all_auditions.dart';
+import 'package:cue_cast_app/pages/artist_profile.dart';
+import 'package:cue_cast_app/pages/category_audition_screen.dart';
+
 import 'package:cue_cast_app/pages/postscreen.dart';
+import 'package:cue_cast_app/pages/recruiter_profile.dart';
 import 'package:cue_cast_app/pages/settings.dart';
-import 'package:cue_cast_app/pages/voiceover.dart';
-import 'package:cue_cast_app/pages/writing.dart';
+
 import 'package:cue_cast_app/pages/notifications.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:flutter/material.dart';
 
-
-
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String userId;
+  final String role;
+  const HomeScreen({super.key, required this.role, required this.userId});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  String? profileImageUrl;
 
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfileImage();
+  }
 
- 
-  
+  Future<void> _fetchProfileImage() async {
+    try {
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(widget.userId)
+              .get();
+      if (userDoc.exists) {
+        setState(() {
+          profileImageUrl = userDoc.data()?['profileImageUrl'];
+        });
+      }
+    } catch (e) {
+      print('Error fetching profile image: $e');
+    }
+  }
 
   int _selectedIndex = 0;
 
   // List of screens for Bottom Navigation
-  final List<Widget> _screens = [
+  List<Widget> get _screens => [
     HomeWidget(),
-    PostAuditionScreen(),
+    PostAuditionScreen(role: widget.role),
     NotificationScreen(),
-    SettingsScreen(),
+    SettingsScreen(role: widget.role),
   ];
 
   void _onItemTapped(int index) {
@@ -43,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _getAppBarTitle() {
     switch (_selectedIndex) {
       case 0:
-        return "Hello, Name";
+        return 'Welcome, ${widget.role}';
       case 1:
         return "Post Audition";
       case 2:
@@ -63,8 +86,30 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text(_getAppBarTitle(), style: TextStyle(color: Colors.white)),
         actions: [
           IconButton(
-            icon: Icon(Icons.account_circle),
-            onPressed: () {},
+            icon:
+                profileImageUrl != null
+                    ? CircleAvatar(
+                      radius: 15,
+                      backgroundImage: NetworkImage(profileImageUrl!),
+                    )
+                    : const Icon(Icons.account_circle, size: 30),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) =>
+                          widget.role == 'Artist'
+                              ? const UserProfileScreen()
+                              : RecruiterProfile(),
+                ),
+              );
+
+              // If profile was updated, refresh the image
+              if (result == 'profileUpdated') {
+                _fetchProfileImage();
+              }
+            },
             color: Colors.white,
           ),
         ],
@@ -127,7 +172,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // All Auditions Button
             ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AllAuditionsScreen(),
+                  ),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 minimumSize: Size(double.infinity, 70),
                 shape: RoundedRectangleBorder(
@@ -210,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => CategoryScreen(categoryName: title),
+            builder: (context) => CategoryAuditionsScreen(categoryName: title),
           ),
         );
       },
@@ -250,44 +302,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-// Category Screen
-class CategoryScreen extends StatelessWidget {
-  final String categoryName;
-
-  const CategoryScreen({super.key, required this.categoryName});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget categoryWidget;
-
-    // Navigate to the correct screen based on category
-    switch (categoryName) {
-      case "Acting":
-        categoryWidget = ActingScreen();
-        break;
-      case "Modelling":
-        categoryWidget = ModellingScreen();
-        break;
-      case "VoiceOver":
-        categoryWidget = VoiceOverScreen();
-        break;
-      case "Music":
-        categoryWidget = MusicScreen();
-        break;
-      case "Writing":
-        categoryWidget = WritingScreen();
-        break;
-      default:
-        categoryWidget = Center(child: Text("Category not found"));
-    }
-
-    return Scaffold(
-      appBar: AppBar(title: Text(categoryName)),
-      body: categoryWidget,
     );
   }
 }

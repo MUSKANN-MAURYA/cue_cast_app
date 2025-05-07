@@ -1,4 +1,7 @@
+import 'package:cue_cast_app/pages/home.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MyRegister extends StatefulWidget {
   const MyRegister({super.key});
@@ -8,13 +11,84 @@ class MyRegister extends StatefulWidget {
 }
 
 class _MyRegisterState extends State<MyRegister> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+
   String? selectedRole;
   bool _obscurePassword = true;
 
   @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void handleSignUp() async {
+    if (_emailController.text.isEmpty ||
+        _passwordController.text.isEmpty ||
+        _confirmPasswordController.text.isEmpty ||
+        _nameController.text.isEmpty ||
+        selectedRole == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
+      return;
+    }
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
+      return;
+    }
+    try {
+      // Create user with email and password
+      final userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          );
+
+      final userId = userCredential.user?.uid;
+
+      // Store user role, email, and name in Firestore
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'email': _emailController.text.trim(),
+        'role': selectedRole,
+        'name': _nameController.text.trim(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Sign up successful! Welcome, ${userCredential.user?.email}',
+          ),
+        ),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => HomeScreen(role: selectedRole!, userId: userId!),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sign up failed: ${e.toString()}')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         image: DecorationImage(
           image: AssetImage('assets/bg_2.jpeg'),
           fit: BoxFit.cover,
@@ -22,17 +96,15 @@ class _MyRegisterState extends State<MyRegister> {
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-
         body: Stack(
           children: [
             Container(
-              padding: EdgeInsets.only(left: 47, top: 137),
-              child: Text(
+              padding: const EdgeInsets.only(left: 47, top: 137),
+              child: const Text(
                 'Create Account',
                 style: TextStyle(color: Colors.white, fontSize: 37),
               ),
             ),
-
             SingleChildScrollView(
               child: Container(
                 padding: EdgeInsets.only(
@@ -43,132 +115,111 @@ class _MyRegisterState extends State<MyRegister> {
                 child: Column(
                   children: [
                     Row(
-  children: [
-    Expanded(
-      child: ListTile(
-        dense: true,
-        leading: Radio(
-          value: "Artist",
-          activeColor: const Color.fromARGB(255, 232, 240, 217),
-          groupValue: selectedRole,
-          onChanged: (value) {
-            setState(() {
-              selectedRole = value;
-            });
-          },
-        ),
-        title: const Flexible(
-          child: Text(
-            "Artist",
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Color.fromARGB(246, 252, 251, 251),
-            ),
-          ),
-        ),
-      ),
-    ),
-    Expanded(
-      child: ListTile(
-        dense: true,
-        leading: Radio(
-          value: "Recruiter",
-          activeColor: const Color.fromARGB(255, 232, 240, 217),
-          groupValue: selectedRole,
-          onChanged: (value) {
-            setState(() {
-              selectedRole = value;
-            });
-          },
-        ),
-        title: const Flexible(
-          child: Text(
-            "Recruiter",
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Color.fromARGB(246, 252, 251, 251),
-            ),
-          ),
-        ),
-      ),
-    ),
-  ],
-),
-                    SizedBox(height: 30),
-                    TextField(
-                      decoration: InputDecoration(
-                        fillColor: Colors.grey.shade100,
-                        filled: true,
-                        hintText: 'Name',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      children: [
+                        Expanded(
+                          child: ListTile(
+                            dense: true,
+                            leading: Radio(
+                              value: "Artist",
+                              groupValue: selectedRole,
+                              activeColor: Colors.white,
+                              onChanged: (value) {
+                                setState(() => selectedRole = value);
+                              },
+                            ),
+                            title: const Text(
+                              "Artist",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    SizedBox(height: 40),
-                    TextField(
-                      decoration: InputDecoration(
-                        fillColor: Colors.grey.shade100,
-                        filled: true,
-                        hintText: 'Email',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                        Expanded(
+                          child: ListTile(
+                            dense: true,
+                            leading: Radio(
+                              value: "Recruiter",
+                              groupValue: selectedRole,
+                              activeColor: Colors.white,
+                              onChanged: (value) {
+                                setState(() => selectedRole = value);
+                              },
+                            ),
+                            title: const Text(
+                              "Recruiter",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-
-                    SizedBox(height: 40),
+                    const SizedBox(height: 20),
                     TextField(
+                      controller: _nameController,
+                      decoration: _inputDecoration('Name'),
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _emailController,
+                      decoration: _inputDecoration('Email'),
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _passwordController,
                       obscureText: _obscurePassword,
-                      //obscureText: true,
-                      decoration: InputDecoration(
-                        fillColor: Colors.grey.shade100,
-                        filled: true,
-                        hintText: 'Password',
+                      decoration: _inputDecoration('Password').copyWith(
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
                                 ? Icons.visibility_off
                                 : Icons.visibility,
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          onPressed:
+                              () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                         ),
                       ),
                     ),
-                    SizedBox(height: 40),
+                    const SizedBox(height: 30),
+                    TextField(
+                      controller: _confirmPasswordController,
+                      obscureText: _obscurePassword,
+                      decoration: _inputDecoration('Confirm Password').copyWith(
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed:
+                              () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                        ),
+                      ),
+                    ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
+                        const Text(
                           "Sign Up",
                           style: TextStyle(
-                            color: Color.fromARGB(255, 251, 252, 253),
+                            color: Colors.white,
                             fontSize: 27,
                             fontWeight: FontWeight.w700,
-                            
                           ),
                         ),
                         CircleAvatar(
                           radius: 30,
-                          backgroundColor: Color.fromARGB(255, 10, 10, 10),
+                          backgroundColor: Colors.black,
                           child: IconButton(
                             color: Colors.white,
-                            onPressed: () {
-                              Navigator.pushNamed(context, 'home');
-                            },
-                            icon: Icon(Icons.arrow_forward),
+                            icon: const Icon(Icons.arrow_forward),
+                            onPressed: handleSignUp,
                           ),
                         ),
                       ],
                     ),
-                    SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -176,6 +227,15 @@ class _MyRegisterState extends State<MyRegister> {
           ],
         ),
       ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey.shade100,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
     );
   }
 }

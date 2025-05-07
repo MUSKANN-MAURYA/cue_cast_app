@@ -1,19 +1,98 @@
-// import 'package:cue_cast_app/auth.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cue_cast_app/pages/home.dart';
+import 'package:cue_cast_app/pages/register.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class MyLogin extends StatefulWidget {
   const MyLogin({super.key});
 
   @override
-  _MyLoginState createState() => _MyLoginState();
+  State<MyLogin> createState() => _MyLoginState();
 }
 
 class _MyLoginState extends State<MyLogin> {
- // String? errorMessage = " ";
+  
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
- 
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+  
+  void handleLogin() async {
+  String email = _emailController.text.trim();
+  String password = _passwordController.text.trim();
+
+  if (email.isEmpty || password.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please fill in all fields')),
+    );
+    return;
+  }
+
+  try {
+    final userCredential = await FirebaseAuth.instance
+        .signInWithEmailAndPassword(
+          email: email,
+          password: password);
+
+    final uid = userCredential.user?.uid;
+
+    // Fetch user role from Firestore
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    final role = userDoc.data()?['role'];
+
+    if (role == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User role not found.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Login successful! Welcome, ${userCredential.user?.email}')),
+    );
+
+    // Optionally pass role to HomeScreen
+    if (uid != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomeScreen(role: role,userId: uid),
+        ),
+      );
+    }
+    
+  } on FirebaseAuthException catch (e) {
+    String errorMessage = 'Login failed';
+
+    if (e.code == 'user-not-found') {
+      errorMessage = 'Account not found';
+    } else if (e.code == 'wrong-password') {
+      errorMessage = 'Incorrect password';
+    } else if (e.code == 'invalid-email') {
+      errorMessage = 'Invalid email format';
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(errorMessage)),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('An error occurred: ${e.toString()}')),
+    );
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -31,8 +110,7 @@ class _MyLoginState extends State<MyLogin> {
             Container(
               padding: EdgeInsets.only(left: 47, top: 140),
               child: Text(
-                'Login \n ',
-
+                'Login',
                 style: TextStyle(color: Colors.white, fontSize: 47),
               ),
             ),
@@ -46,37 +124,24 @@ class _MyLoginState extends State<MyLogin> {
                 child: Column(
                   children: [
                     TextField(
-                      decoration: InputDecoration(
-                        fillColor: Colors.grey.shade100,
-                        filled: true,
-                        hintText: 'Email',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
+                      controller: _emailController,
+                      decoration: _inputDecoration('Email'),
                     ),
                     SizedBox(height: 30),
                     TextField(
+                      controller: _passwordController,
                       obscureText: _obscurePassword,
-
-                      decoration: InputDecoration(
+                      decoration: _inputDecoration('Password').copyWith(
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
                                 ? Icons.visibility_off
                                 : Icons.visibility,
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
-                        ),
-                        fillColor: Colors.grey.shade100,
-                        filled: true,
-                        hintText: 'Password',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          onPressed:
+                              () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                         ),
                       ),
                     ),
@@ -87,20 +152,21 @@ class _MyLoginState extends State<MyLogin> {
                         Text(
                           "Sign In",
                           style: TextStyle(
-                            color: Color.fromARGB(255, 247, 249, 247),
+                            color: Colors.white,
                             fontSize: 27,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         CircleAvatar(
                           radius: 30,
-                          backgroundColor: Color.fromARGB(255, 17, 17, 18),
+                          backgroundColor: Colors.black,
                           child: IconButton(
                             color: Colors.white,
-                            onPressed: () {
-                              Navigator.pushNamed(context, 'home');
-                            },
                             icon: Icon(Icons.arrow_forward),
+                            onPressed: 
+                                 handleLogin,
+                                
+              
                           ),
                         ),
                       ],
@@ -111,28 +177,26 @@ class _MyLoginState extends State<MyLogin> {
                       children: [
                         TextButton(
                           onPressed: () {
-                            Navigator.pushNamed(context, 'register');
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const MyRegister(),
+                              ),
+                            );
                           },
-                          child: Text(
-                            "Sign Up",
+                          child: const Text(
+                            "Don't have an account? Sign up",
                             style: TextStyle(
                               decoration: TextDecoration.underline,
                               fontSize: 18,
-                              color: Color.fromARGB(255, 242, 242, 244),
+                              color: Colors.white,
                             ),
                           ),
                         ),
-                        TextButton(
-                          onPressed: () {},
-                          child: Text(
-                            "Forgot Password",
-                            style: TextStyle(
-                              decoration: TextDecoration.underline,
-                              fontSize: 18,
-                              color: Color.fromARGB(255, 253, 254, 254),
-                            ),
-                          ),
-                        ),
+                        // TextButton(
+                        //   onPressed: () {},
+                        //   child: Text("Forgot Password", style: TextStyle(decoration: TextDecoration.underline, fontSize: 18, color: Colors.white)),
+                        // ),
                       ],
                     ),
                   ],
@@ -142,6 +206,15 @@ class _MyLoginState extends State<MyLogin> {
           ],
         ),
       ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey.shade100,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
     );
   }
 }

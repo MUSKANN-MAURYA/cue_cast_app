@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "669976264384",
-    "project_id": "fir-auth-58d02",
-    "storage_bucket": "fir-auth-58d02.firebasestorage.app"
+    "project_number": "504698129582",
+    "project_id": "cue-cast-app",
+    "storage_bucket": "cue-cast-app.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:669976264384:android:ecce2f0fcd43b7cba5f725",
+        "mobilesdk_app_id": "1:504698129582:android:efb6c82666a81685b6f13f",
         "android_client_info": {
           "package_name": "com.example.cue_cast_app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyActSWUzRnB66xXJZYZ_6yppAwxHKgC_iU"
+          "current_key": "AIzaSyA8HkDXE7UWRu8DWTEeccGs0Cgz2UK0gy0"
         }
       ],
       "services": {
