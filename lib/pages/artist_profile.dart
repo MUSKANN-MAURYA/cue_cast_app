@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // For formatting the date
 import 'package:path/path.dart' as path; // For handling file paths
+import 'package:video_player/video_player.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -59,6 +60,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   ];
   List<String> selectedSkills = [];
   String? profileImageUrl;
+  List<String> headshotUrls = [];
+  List<String> videoUrls = [];
 
   @override
   void initState() {
@@ -96,6 +99,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
             dobController.text = userData?['dob'] ?? '';
             selectedSkills = List<String>.from(userData?['skills'] ?? []);
             professionController.text = userData?['profession'] ?? '';
+            headshotUrls = List<String>.from(userData?['headshots'] ?? []);
+            videoUrls = List<String>.from(userData?['videos'] ?? []);
           });
         }
       }
@@ -289,10 +294,44 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     );
   }
 
+  Future<void> _pickAndUploadVideo() async {
+    final XFile? pickedVideo = await _picker.pickVideo(
+      source: ImageSource.gallery,
+    );
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (pickedVideo != null && userId != null) {
+      final fileName =
+          'videos/${userId}_${DateTime.now().millisecondsSinceEpoch}_${path.basename(pickedVideo.path)}';
+      await supabase.storage
+          .from('testscripts')
+          .upload(
+            fileName,
+            File(pickedVideo.path),
+            fileOptions: const FileOptions(upsert: true),
+          );
+      final publicUrl = supabase.storage
+          .from('testscripts')
+          .getPublicUrl(fileName);
+
+      // Save URL to Firestore under user's document
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'videos': FieldValue.arrayUnion([publicUrl]),
+      });
+
+      setState(() {
+        videoUrls.add(publicUrl);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        title: const Text('Profile', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
       body: Column(
         children: [
           const SizedBox(height: 20),
@@ -431,22 +470,260 @@ class _UserProfileScreenState extends State<UserProfileScreen>
 
   Widget buildUploads() {
     return ListView(
-      children: const [
+      children: [
         ListTile(
-          title: Text('Photos'),
-          trailing: Icon(Icons.arrow_forward_ios),
+          title: const Text('Headshots'),
+          trailing: const Icon(Icons.arrow_forward_ios),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) =>
+                        HeadshotsScreen(initialHeadshots: headshotUrls),
+              ),
+            );
+          },
         ),
         Divider(),
         ListTile(
-          title: Text('Videos'),
-          trailing: Icon(Icons.arrow_forward_ios),
+          title: const Text('Show Reel'),
+          trailing: const Icon(Icons.arrow_forward_ios),
+          onTap: () async {
+            await showDialog(
+              context: context,
+              builder:
+                  (context) => StatefulBuilder(
+                    builder:
+                        (context, setStateDialog) => AlertDialog(
+                          title: const Text('Videos'),
+                          content: SizedBox(
+                            width: double.maxFinite,
+                            child:
+                                videoUrls.isEmpty
+                                    ? const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      child: Text('No videos uploaded.'),
+                                    )
+                                    : SizedBox(
+                                      height: 200,
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount: videoUrls.length,
+                                        itemBuilder: (context, index) {
+                                          return Padding(
+                                            padding: const EdgeInsets.all(4.0),
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder:
+                                                      (context) => Center(
+                                                        child: Dialog(
+                                                          backgroundColor:
+                                                              Colors.black,
+                                                          child: AspectRatio(
+                                                            aspectRatio: 16 / 9,
+                                                            child: VideoPlayerWidget(
+                                                              videoUrl:
+                                                                  videoUrls[index],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                );
+                                              },
+                                              child: Container(
+                                                width: 120,
+                                                color: Colors.black12,
+                                                child: Center(
+                                                  child: Icon(
+                                                    Icons.play_circle_fill,
+                                                    size: 48,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                          ),
+                          actions: [
+                            FloatingActionButton(
+                              heroTag: 'addVideo',
+                              onPressed: () async {
+                                await _pickAndUploadVideo();
+                                setState(() {});
+                                setStateDialog(() {});
+                              },
+                              child: const Icon(Icons.add),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Close'),
+                            ),
+                          ],
+                        ),
+                  ),
+            );
+          },
         ),
         Divider(),
-        ListTile(
-          title: Text('Experience'),
-          trailing: Icon(Icons.arrow_forward_ios),
-        ),
       ],
+    );
+  }
+}
+
+class VideoPlayerWidget extends StatefulWidget {
+  final String videoUrl;
+  const VideoPlayerWidget({super.key, required this.videoUrl});
+
+  @override
+  State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
+}
+
+class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
+  late VideoPlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.network(widget.videoUrl)
+      ..initialize().then((_) {
+        setState(() {});
+        _controller.play();
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _controller.value.isInitialized
+        ? AspectRatio(
+          aspectRatio: _controller.value.aspectRatio,
+          child: VideoPlayer(_controller),
+        )
+        : const Center(child: CircularProgressIndicator());
+  }
+}
+
+class HeadshotsScreen extends StatefulWidget {
+  final List<String> initialHeadshots;
+  const HeadshotsScreen({super.key, required this.initialHeadshots});
+
+  @override
+  State<HeadshotsScreen> createState() => _HeadshotsScreenState();
+}
+
+class _HeadshotsScreenState extends State<HeadshotsScreen> {
+  final SupabaseClient supabase = Supabase.instance.client;
+  final ImagePicker _picker = ImagePicker();
+  List<XFile> selectedImages = [];
+  List<String> headshotUrls = [];
+
+  @override
+  void initState() {
+    super.initState();
+    headshotUrls = List<String>.from(widget.initialHeadshots);
+  }
+
+  Future<void> _pickImages() async {
+    final List<XFile> picked = await _picker.pickMultiImage();
+    setState(() {
+      selectedImages.addAll(picked);
+    });
+  }
+
+  Future<void> _uploadImages() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null || selectedImages.isEmpty) return;
+
+    List<String> newUrls = [];
+    for (var image in selectedImages) {
+      final fileName =
+          'submissions/${userId}_${DateTime.now().millisecondsSinceEpoch}_${path.basename(image.path)}';
+      await supabase.storage
+          .from('testscripts')
+          .upload(
+            fileName,
+            File(image.path),
+            fileOptions: const FileOptions(upsert: true),
+          );
+      final publicUrl = supabase.storage
+          .from('testscripts')
+          .getPublicUrl(fileName);
+      newUrls.add(publicUrl);
+    }
+    // Save URLs to Firestore under user's document
+    await FirebaseFirestore.instance.collection('users').doc(userId).update({
+      'headshots': FieldValue.arrayUnion(newUrls),
+    });
+    setState(() {
+      headshotUrls.addAll(newUrls);
+      selectedImages.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Headshots uploaded successfully!')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Headshots')),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Expanded(
+              child: GridView.builder(
+                itemCount: headshotUrls.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 4,
+                ),
+                itemBuilder: (context, index) {
+                  return Image.network(headshotUrls[index], fit: BoxFit.cover);
+                },
+              ),
+            ),
+            if (selectedImages.isNotEmpty)
+              SizedBox(
+                height: 100,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: selectedImages.length,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Image.file(File(selectedImages[index].path)),
+                    );
+                  },
+                ),
+              ),
+            if (selectedImages.isNotEmpty)
+              ElevatedButton.icon(
+                icon: const Icon(Icons.cloud_upload),
+                label: const Text('Upload'),
+                onPressed: _uploadImages,
+              ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _pickImages,
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }

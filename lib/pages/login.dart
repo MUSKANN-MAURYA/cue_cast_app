@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cue_cast_app/main.dart'; // Adjust the path if needed
 import 'package:cue_cast_app/pages/home.dart';
 import 'package:cue_cast_app/pages/register.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +13,6 @@ class MyLogin extends StatefulWidget {
 }
 
 class _MyLoginState extends State<MyLogin> {
-  
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
@@ -23,76 +23,81 @@ class _MyLoginState extends State<MyLogin> {
     _passwordController.dispose();
     super.dispose();
   }
-  
+
   void handleLogin() async {
-  String email = _emailController.text.trim();
-  String password = _passwordController.text.trim();
+    String email = _emailController.text.trim();
+    String password = _passwordController.text.trim();
 
-  if (email.isEmpty || password.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please fill in all fields')),
-    );
-    return;
-  }
-
-  try {
-    final userCredential = await FirebaseAuth.instance
-        .signInWithEmailAndPassword(
-          email: email,
-          password: password);
-
-    final uid = userCredential.user?.uid;
-
-    // Fetch user role from Firestore
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-
-    final role = userDoc.data()?['role'];
-
-    if (role == null) {
+    if (email.isEmpty || password.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User role not found.')),
+        const SnackBar(content: Text('Please fill in all fields')),
       );
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Login successful! Welcome, ${userCredential.user?.email}')),
-    );
+    try {
+      final userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
 
-    // Optionally pass role to HomeScreen
-    if (uid != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeScreen(role: role,userId: uid),
+      final uid = userCredential.user?.uid;
+
+      // Fetch user role from Firestore
+      final userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+      final role = userDoc.data()?['role'];
+
+      if (role == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('User role not found.')));
+        return;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Login successful! Welcome, ${userCredential.user?.email}',
+          ),
         ),
       );
-    }
+      // Save FCM token after successful login
     
-  } on FirebaseAuthException catch (e) {
-    String errorMessage = 'Login failed';
+      // Optionally pass role to HomeScreen
+      if (uid != null) {
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(role: role, userId: uid),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'Login failed';
 
-    if (e.code == 'user-not-found') {
-      errorMessage = 'Account not found';
-    } else if (e.code == 'wrong-password') {
-      errorMessage = 'Incorrect password';
-    } else if (e.code == 'invalid-email') {
-      errorMessage = 'Invalid email format';
+      if (e.code == 'user-not-found') {
+        errorMessage = 'Account not found';
+      } else if (e.code == 'wrong-password') {
+        errorMessage = 'Incorrect password';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Invalid email format';
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorMessage)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred: ${e.toString()}')),
+      );
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(errorMessage)),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('An error occurred: ${e.toString()}')),
-    );
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -163,10 +168,7 @@ class _MyLoginState extends State<MyLogin> {
                           child: IconButton(
                             color: Colors.white,
                             icon: Icon(Icons.arrow_forward),
-                            onPressed: 
-                                 handleLogin,
-                                
-              
+                            onPressed: handleLogin,
                           ),
                         ),
                       ],

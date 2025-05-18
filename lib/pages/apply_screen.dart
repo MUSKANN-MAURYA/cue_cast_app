@@ -25,12 +25,10 @@ class _ApplyAuditionFormState extends State<ApplyAuditionForm> {
   File? _selectedVideo;
   bool _isUploading = false;
   VideoPlayerController? _videoController;
-  String? _videoUrl;
 
   @override
   void initState() {
     super.initState();
-    // Set the role title from the audition title and make it read-only
     _roleController.text = widget.auditionTitle;
   }
 
@@ -44,57 +42,39 @@ class _ApplyAuditionFormState extends State<ApplyAuditionForm> {
 
   Future<void> _pickVideo() async {
     if (_isUploading) return;
-    setState(() {
-      _isUploading = true;
-    });
+    setState(() => _isUploading = true);
 
     final picker = ImagePicker();
     try {
-      final XFile? pickedFile = await picker.pickVideo(
-        source: ImageSource.gallery,
-      );
+      final XFile? pickedFile = await picker.pickVideo(source: ImageSource.gallery);
       if (pickedFile != null) {
-        setState(() {
-          _selectedVideo = File(pickedFile.path);
-        });
+        setState(() => _selectedVideo = File(pickedFile.path));
         _videoController?.dispose();
         _videoController = VideoPlayerController.file(_selectedVideo!)
           ..initialize().then((_) {
-            setState(() {
-              _isUploading = false;
-            });
+            setState(() => _isUploading = false);
             _videoController?.setLooping(true);
             _videoController?.play();
           });
       } else {
-        setState(() {
-          _isUploading = false;
-        });
+        setState(() => _isUploading = false);
       }
-    } catch (e) {
-      setState(() {
-        _isUploading = false;
-      });
+    } catch (_) {
+      setState(() => _isUploading = false);
     }
   }
 
   Future<String?> _uploadVideoToSupabase(File videoFile) async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
-    final fileName =
-        'submissions/$userId-${DateTime.now().millisecondsSinceEpoch}.mp4';
+    final fileName = 'submissions/$userId-${DateTime.now().millisecondsSinceEpoch}.mp4';
     final supabase = Supabase.instance.client;
-    final response = await supabase.storage
-        .from('testscripts')
-        .upload(
-          fileName,
-          videoFile,
-          fileOptions: const FileOptions(upsert: true),
-        );
+    final response = await supabase.storage.from('testscripts').upload(
+      fileName,
+      videoFile,
+      fileOptions: const FileOptions(upsert: true),
+    );
     if (response.isNotEmpty) {
-      final publicUrl = supabase.storage
-          .from('testscripts')
-          .getPublicUrl(fileName);
-      return publicUrl;
+      return supabase.storage.from('testscripts').getPublicUrl(fileName);
     }
     return null;
   }
@@ -102,29 +82,18 @@ class _ApplyAuditionFormState extends State<ApplyAuditionForm> {
   Future<void> _submitForm() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return;
-    final role = _roleController.text.trim();
-    final description = _descriptionController.text.trim();
 
     if (_selectedVideo == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please select a video')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a video')));
       return;
     }
 
-    setState(() {
-      _isUploading = true;
-    });
+    setState(() => _isUploading = true);
 
     final videoUrl = await _uploadVideoToSupabase(_selectedVideo!);
-
     if (videoUrl == null) {
-      setState(() {
-        _isUploading = false;
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Video upload failed')));
+      setState(() => _isUploading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Video upload failed')));
       return;
     }
 
@@ -132,19 +101,15 @@ class _ApplyAuditionFormState extends State<ApplyAuditionForm> {
       'auditionId': widget.auditionId,
       'auditionTitle': widget.auditionTitle,
       'userId': userId,
-      'role': role,
-      'description': description,
+      'role': _roleController.text.trim(),
+      'description': _descriptionController.text.trim(),
       'videoUrl': videoUrl,
       'timestamp': FieldValue.serverTimestamp(),
+      'status': 'Submitted',
     });
 
-    setState(() {
-      _isUploading = false;
-    });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Application submitted!')));
+    setState(() => _isUploading = false);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Application submitted!')));
     Navigator.pop(context, 'submitted');
   }
 
@@ -153,28 +118,26 @@ class _ApplyAuditionFormState extends State<ApplyAuditionForm> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: const Text('Apply', style: TextStyle(color: Colors.black)),
-        backgroundColor: Colors.transparent,
+        title: const Text('Apply', style: TextStyle(color: Colors.white,  )),
+        backgroundColor: Colors.black,
         elevation: 0,
-        centerTitle: true,
-        automaticallyImplyLeading: false,
+        //centerTitle: true,
+        leading: BackButton(color: Colors.white),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text("Role Title", style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
             TextField(
               controller: _roleController,
-              readOnly: true, // Make the field read-only
+              readOnly: true,
               decoration: InputDecoration(
-                hintText: "Role title",
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 15,
-                  vertical: 18,
-                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 18),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -182,8 +145,8 @@ class _ApplyAuditionFormState extends State<ApplyAuditionForm> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text("Description", style: TextStyle(fontSize: 14)),
-            const SizedBox(height: 5),
+            const Text("Description", style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
             TextField(
               controller: _descriptionController,
               maxLines: 4,
@@ -202,15 +165,15 @@ class _ApplyAuditionFormState extends State<ApplyAuditionForm> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: const [
-                Text("Add Your Video", style: TextStyle(fontSize: 16)),
-                Icon(Icons.arrow_forward, size: 24),
+                Text("Upload Your Audition Video", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Icon(Icons.video_library, size: 24, color: Colors.grey),
               ],
             ),
             const SizedBox(height: 16),
             GestureDetector(
               onTap: _isUploading ? null : _pickVideo,
               child: Container(
-                height: 250,
+                height: 220,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -218,67 +181,63 @@ class _ApplyAuditionFormState extends State<ApplyAuditionForm> {
                   border: Border.all(color: Colors.blueGrey.shade200),
                 ),
                 child: Center(
-                  child:
-                      (_selectedVideo != null &&
-                              _videoController != null &&
-                              _videoController!.value.isInitialized)
-                          ? Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              AspectRatio(
-                                aspectRatio:
-                                    _videoController!.value.aspectRatio,
-                                child: VideoPlayer(_videoController!),
+                  child: (_selectedVideo != null && _videoController != null && _videoController!.value.isInitialized)
+                      ? Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            AspectRatio(
+                              aspectRatio: _videoController!.value.aspectRatio,
+                              child: VideoPlayer(_videoController!),
+                            ),
+                            IconButton(
+                              iconSize: 48,
+                              icon: Icon(
+                                _videoController!.value.isPlaying
+                                    ? Icons.pause_circle_filled
+                                    : Icons.play_circle_filled,
+                                color: Colors.white.withOpacity(0.8),
                               ),
-                              Positioned(
-                                child: IconButton(
-                                  iconSize: 48,
-                                  icon: Icon(
-                                    _videoController!.value.isPlaying
-                                        ? Icons.pause_circle_filled
-                                        : Icons.play_circle_filled,
-                                    color: Colors.white.withOpacity(0.8),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      if (_videoController!.value.isPlaying) {
-                                        _videoController!.pause();
-                                      } else {
-                                        _videoController!.play();
-                                      }
-                                    });
-                                  },
-                                ),
-                              ),
-                            ],
-                          )
-                          : const Icon(
-                            Icons.play_circle_outline,
-                            size: 60,
-                            color: Colors.blueGrey,
-                          ),
+                              onPressed: () {
+                                setState(() {
+                                  if (_videoController!.value.isPlaying) {
+                                    _videoController!.pause();
+                                  } else {
+                                    _videoController!.play();
+                                  }
+                                });
+                              },
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.play_circle_outline, size: 60, color: Colors.blueGrey),
+                            SizedBox(height: 10),
+                            Text("Tap to upload video", style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
                 ),
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
                 onPressed: _isUploading ? null : _submitForm,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueGrey,
+                  backgroundColor: const Color(0xFF2C3A47),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child:
-                    _isUploading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                          "Submit",
-                          style: TextStyle(fontSize: 16, color: Colors.white),
-                        ),
+                child: _isUploading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        "Submit Application",
+                        style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ],

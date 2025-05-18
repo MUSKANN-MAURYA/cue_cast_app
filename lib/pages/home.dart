@@ -1,16 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 import 'package:cue_cast_app/pages/all_auditions.dart';
 import 'package:cue_cast_app/pages/artist_profile.dart';
 import 'package:cue_cast_app/pages/category_audition_screen.dart';
-
 import 'package:cue_cast_app/pages/postscreen.dart';
 import 'package:cue_cast_app/pages/recruiter_profile.dart';
 import 'package:cue_cast_app/pages/settings.dart';
-
 import 'package:cue_cast_app/pages/notifications.dart';
-import 'package:curved_navigation_bar/curved_navigation_bar.dart';
-import 'package:flutter/material.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userId;
@@ -23,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String? profileImageUrl;
+  String? userName;
 
   @override
   void initState() {
@@ -40,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (userDoc.exists) {
         setState(() {
           profileImageUrl = userDoc.data()?['profileImageUrl'];
+          userName = userDoc.data()?['name'];
         });
       }
     } catch (e) {
@@ -49,9 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _selectedIndex = 0;
 
-  // List of screens for Bottom Navigation
   List<Widget> get _screens => [
-    HomeWidget(),
+    HomeWidget(userId: widget.userId, role: widget.role),
     PostAuditionScreen(role: widget.role),
     NotificationScreen(),
     SettingsScreen(role: widget.role),
@@ -63,100 +61,99 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  String _getAppBarTitle() {
-    switch (_selectedIndex) {
-      case 0:
-        return 'Welcome, ${widget.role}';
-      case 1:
-        return "Post Audition";
-      case 2:
-        return "Notifications";
-      case 3:
-        return "Settings";
-      default:
-        return "Cue Cast";
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      appBar: AppBar(
-        title: Text(_getAppBarTitle(), style: TextStyle(color: Colors.white)),
-        actions: [
-          IconButton(
-            icon:
-                profileImageUrl != null
-                    ? CircleAvatar(
-                      radius: 15,
-                      backgroundImage: NetworkImage(profileImageUrl!),
-                    )
-                    : const Icon(Icons.account_circle, size: 30),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder:
-                      (context) =>
-                          widget.role == 'Artist'
-                              ? const UserProfileScreen()
-                              : RecruiterProfile(),
+      appBar:
+          _selectedIndex == 0
+              ? AppBar(
+                title: Text(
+                  'Welcome, ${userName ?? ""}',
+                  style: TextStyle(color: Colors.white),
                 ),
-              );
-
-              // If profile was updated, refresh the image
-              if (result == 'profileUpdated') {
-                _fetchProfileImage();
-              }
-            },
-            color: Colors.white,
+                actions: [
+                  IconButton(
+                    icon:
+                        profileImageUrl != null
+                            ? CircleAvatar(
+                              radius: 15,
+                              backgroundImage: NetworkImage(profileImageUrl!),
+                            )
+                            : const Icon(Icons.account_circle, size: 30),
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) =>
+                                  widget.role == 'Artist'
+                                      ? const UserProfileScreen()
+                                      : RecruiterProfile(),
+                        ),
+                      );
+                      if (result == 'profileUpdated') {
+                        _fetchProfileImage();
+                      }
+                    },
+                    color: Colors.white,
+                  ),
+                ],
+                automaticallyImplyLeading: false,
+                elevation: 0,
+                backgroundColor: Colors.black,
+              )
+              : null,
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        backgroundColor: Colors.black,
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.white70,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.add), label: 'Post'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications),
+            label: 'Notifications',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
-        automaticallyImplyLeading: false,
-        elevation: 0,
-        backgroundColor: Color(0xFF2C3A47),
       ),
-      body:
-          _selectedIndex == 0 ? _buildHomeContent() : _screens[_selectedIndex],
-
-      // Bottom Navigation Bar
-      bottomNavigationBar: Theme(
-        data: Theme.of(
-          context,
-        ).copyWith(iconTheme: IconThemeData(color: Colors.white)),
-        child: CurvedNavigationBar(
-          index: _selectedIndex,
-          onTap: _onItemTapped,
-          backgroundColor: Colors.transparent,
-          color: Color(0xFF2C3A47),
-          buttonBackgroundColor: Colors.black,
-          animationCurve: Curves.easeInOut,
-          animationDuration: Duration(milliseconds: 300),
-          items: const <Widget>[
-            Icon(Icons.home, size: 30),
-            Icon(Icons.add, size: 30),
-            Icon(Icons.notifications, size: 30),
-            Icon(Icons.settings, size: 30),
-          ],
-          height: 60,
-        ),
-      ),
-
-      // body: _pages[_selectedIndex],
     );
   }
+}
 
-  // Home Screen Content
-  Widget _buildHomeContent() {
+class HomeWidget extends StatelessWidget {
+  final String userId;
+  final String role;
+  const HomeWidget({super.key, required this.userId, required this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    return HomeContent(userId: userId, role: role);
+  }
+}
+
+class HomeContent extends StatelessWidget {
+  final String userId;
+  final String role;
+  const HomeContent({super.key, required this.userId, required this.role});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      color: Colors.white10,
+      color: Colors.white,
       child: SingleChildScrollView(
         padding: EdgeInsets.all(10.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image Banner
             Container(
               height: 171,
               width: double.infinity,
@@ -169,8 +166,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             SizedBox(height: 10),
-
-            // All Auditions Button
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
@@ -183,11 +178,9 @@ class _HomeScreenState extends State<HomeScreen> {
               style: ElevatedButton.styleFrom(
                 minimumSize: Size(double.infinity, 70),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(
-                    15,
-                  ), // Adjust the value for more/less curve
+                  borderRadius: BorderRadius.circular(15),
                 ),
-                backgroundColor: Color(0xFF2C3A47),
+                backgroundColor: Colors.black,
               ),
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -202,8 +195,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             SizedBox(height: 10),
-
-            // All Categories Section
             Text(
               "All Categories",
               style: TextStyle(
@@ -213,27 +204,22 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             SizedBox(height: 10),
-
             GridView.count(
               crossAxisCount: 2,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
               childAspectRatio: 1,
-              shrinkWrap: true, // Important
-              physics:
-                  NeverScrollableScrollPhysics(), // Prevents nested scrolling
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
               children: [
-                categoryTile("Acting", "assets/acting.jpeg"),
-                categoryTile("Modelling", "assets/modelling.jpeg"),
-                categoryTile("VoiceOver", "assets/voiceover.jpeg"),
-                categoryTile("Music", "assets/music.jpeg"),
-                categoryTile("Writing", "assets/writing.jpeg"),
+                categoryTile(context, "Acting", "assets/acting.jpeg"),
+                categoryTile(context, "Modelling", "assets/modelling.jpeg"),
+                categoryTile(context, "VoiceOver", "assets/voiceover.jpeg"),
+                categoryTile(context, "Music", "assets/music.jpeg"),
+                categoryTile(context, "Writing", "assets/writing.jpeg"),
               ],
             ),
-
             SizedBox(height: 5),
-
-            // Recent Auditions
             Text(
               "Recent Auditions",
               style: TextStyle(
@@ -242,12 +228,93 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Colors.black,
               ),
             ),
-            SizedBox(height: 10),
+            SizedBox(height: 20),
             Container(
-              height: 100,
+              height: 220,
               width: double.infinity,
-              color: Colors.grey[300],
-              child: Center(child: Text("Auditions will be listed here")),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: StreamBuilder<QuerySnapshot>(
+                stream:
+                    FirebaseFirestore.instance
+                        .collection('auditions')
+                        .orderBy('timestamp', descending: true)
+                        .limit(5)
+                        .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(
+                      child: Text("No recent auditions found."),
+                    );
+                  }
+                  final auditions = snapshot.data!.docs;
+                  return ListView.builder(
+                    itemCount: auditions.length,
+                    itemBuilder: (context, index) {
+                      final audition = auditions[index];
+                      final auditionData =
+                          audition.data() as Map<String, dynamic>;
+                      auditionData['id'] = audition.id;
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        child: Stack(
+                          children: [
+                            ListTile(
+                              title: Text(
+                                auditionData['title'] ?? "No Title",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                auditionData['description'] ?? "No Description",
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => AuditionDetailsScreen(
+                                          auditionData: auditionData,
+                                        ),
+                                  ),
+                                );
+                              },
+                            ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Text(
+                                auditionData['deadline'] ?? "No Deadline",
+                                style: const TextStyle(
+                                  color: Colors.blueGrey,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
             SizedBox(height: 20),
           ],
@@ -256,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget categoryTile(String title, String imagePath) {
+  Widget categoryTile(BuildContext context, String title, String imagePath) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -303,15 +370,5 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-  }
-}
-
-// Dummy Placeholder Screens
-class HomeWidget extends StatelessWidget {
-  const HomeWidget({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(child: Text("Home Screen", style: TextStyle(fontSize: 24)));
   }
 }

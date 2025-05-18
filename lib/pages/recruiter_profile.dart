@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cue_cast_app/pages/readonly.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -284,7 +287,11 @@ class _RecruiterProfileState extends State<RecruiterProfile>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        title: const Text('Profile', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
       body: Column(
         children: [
           const SizedBox(height: 20),
@@ -464,92 +471,144 @@ class _RecruiterProfileState extends State<RecruiterProfile>
 
   Widget buildUploads() {
     return ListView(
-      children: const [
+      children: [
+        // All Auditions
         ListTile(
-          title: Text('All Auditions'),
-          trailing: Icon(Icons.arrow_forward_ios),
+          title: const Text('All Auditions'),
+          trailing: const Icon(Icons.arrow_forward_ios),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) => AuditionListScreen(
+                      title: 'All Auditions',
+                      filter: AuditionFilter.all,
+                    ),
+              ),
+            );
+          },
         ),
-        Divider(),
+        const Divider(),
+
+        // Active Auditions
         ListTile(
-          title: Text('Active Auditions'),
-          trailing: Icon(Icons.arrow_forward_ios),
+          title: const Text('Active Auditions'),
+          trailing: const Icon(Icons.arrow_forward_ios),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) => AuditionListScreen(
+                      title: 'Active Auditions',
+                      filter: AuditionFilter.active,
+                    ),
+              ),
+            );
+          },
         ),
-        Divider(),
+        const Divider(),
+
+        // Completed Auditions
         ListTile(
-          title: Text('Completed Auditions'),
-          trailing: Icon(Icons.arrow_forward_ios),
+          title: const Text('Completed Auditions'),
+          trailing: const Icon(Icons.arrow_forward_ios),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) => AuditionListScreen(
+                      title: 'Completed Auditions',
+                      filter: AuditionFilter.completed,
+                    ),
+              ),
+            );
+          },
         ),
       ],
     );
   }
 }
 
-class SubmissionListScreen extends StatelessWidget {
+// Enum for filter type
+enum AuditionFilter { all, active, completed }
+
+// AuditionListScreen implementation
+class AuditionListScreen extends StatelessWidget {
   final String title;
-  final List<QueryDocumentSnapshot> submissions;
-  const SubmissionListScreen({
+  final AuditionFilter filter;
+  const AuditionListScreen({
     super.key,
     required this.title,
-    required this.submissions,
+    required this.filter,
   });
 
   @override
   Widget build(BuildContext context) {
+    final String? userId = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
-      appBar: AppBar(title: Text('Submissions for "$title"')),
-      body: ListView.builder(
-        itemCount: submissions.length,
-        itemBuilder: (context, index) {
-          final data = submissions[index].data() as Map<String, dynamic>;
-          return Card(
-            margin: const EdgeInsets.all(8),
-            child: ListTile(
-              title: Text(data['role'] ?? 'No Role'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(data['description'] ?? ''),
-                  if (data['videoUrl'] != null)
-                    TextButton(
-                      onPressed: () async {
-                        final videoUrl = data['videoUrl'];
-                        if (videoUrl != null) {
-                          showDialog(
-                            context: context,
-                            builder: (context) => Center(
-                              child: VideoDialog(videoUrl: videoUrl),
-                            ),
-                          );
-                        }
-                      },
-                      child: const Text('View Video'),
-                    ),
-                  FutureBuilder<DocumentSnapshot>(
-                    future: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(data['userId'])
-                        .get(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Text('Loading user info...');
-                      }
-                      if (!snapshot.hasData || !snapshot.data!.exists) {
-                        return const Text('User info not found');
-                      }
-                      final user = snapshot.data!.data() as Map<String, dynamic>;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Name: ${user['name'] ?? ''}'),
-                          Text('Email: ${user['email'] ?? ''}'),
-                        ],
-                      );
-                    },
+      appBar: AppBar(
+        title: Text(title, style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream:
+            FirebaseFirestore.instance
+                .collection('auditions')
+                .where('userId', isEqualTo: userId) // <-- Filter by userId
+                .orderBy('timestamp', descending: true)
+                .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text("No auditions found."));
+          }
+
+          final now = DateTime.now();
+          final auditions =
+              snapshot.data!.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final deadlineStr = data['deadline'];
+                if (deadlineStr == null) return false;
+                final deadline = DateTime.tryParse(deadlineStr);
+                if (deadline == null) return false;
+
+                if (filter == AuditionFilter.active) {
+                  return deadline.isAfter(now);
+                } else if (filter == AuditionFilter.completed) {
+                  return deadline.isBefore(now);
+                }
+                return true; // For all
+              }).toList();
+
+          if (auditions.isEmpty) {
+            return Center(child: Text("No auditions found."));
+          }
+
+          return ListView.builder(
+            itemCount: auditions.length,
+            itemBuilder: (context, index) {
+              final audition = auditions[index];
+              final auditionData = audition.data() as Map<String, dynamic>;
+              auditionData['id'] = audition.id;
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: ListTile(
+                  title: Text(auditionData['title'] ?? "No Title"),
+                  subtitle: Text(
+                    auditionData['description'] ?? "No Description",
                   ),
-                ],
-              ),
-            ),
+                  trailing: Text(auditionData['deadline'] ?? "No Deadline"),
+                  // Add onTap for details if needed
+                ),
+              );
+            },
           );
         },
       ),
@@ -590,46 +649,48 @@ class _VideoDialogState extends State<VideoDialog> {
       backgroundColor: Colors.black,
       insetPadding: const EdgeInsets.all(16),
       child: AspectRatio(
-        aspectRatio: _controller.value.isInitialized
-            ? _controller.value.aspectRatio
-            : 16 / 9,
-        child: _controller.value.isInitialized
-            ? Stack(
-                alignment: Alignment.center,
-                children: [
-                  VideoPlayer(_controller),
-                  Positioned(
-                    bottom: 16,
-                    child: IconButton(
-                      iconSize: 48,
-                      icon: Icon(
-                        _controller.value.isPlaying
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_filled,
-                        color: Colors.white,
+        aspectRatio:
+            _controller.value.isInitialized
+                ? _controller.value.aspectRatio
+                : 16 / 9,
+        child:
+            _controller.value.isInitialized
+                ? Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    VideoPlayer(_controller),
+                    Positioned(
+                      bottom: 16,
+                      child: IconButton(
+                        iconSize: 48,
+                        icon: Icon(
+                          _controller.value.isPlaying
+                              ? Icons.pause_circle_filled
+                              : Icons.play_circle_filled,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (_controller.value.isPlaying) {
+                              _controller.pause();
+                            } else {
+                              _controller.play();
+                            }
+                          });
+                        },
                       ),
-                      onPressed: () {
-                        setState(() {
-                          if (_controller.value.isPlaying) {
-                            _controller.pause();
-                          } else {
-                            _controller.play();
-                          }
-                        });
-                      },
                     ),
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
                     ),
-                  ),
-                ],
-              )
-            : const Center(child: CircularProgressIndicator()),
+                  ],
+                )
+                : const Center(child: CircularProgressIndicator()),
       ),
     );
   }
@@ -668,4 +729,252 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         ? VideoPlayer(_controller)
         : const Center(child: CircularProgressIndicator());
   }
+}
+
+class SubmissionListScreen extends StatelessWidget {
+  final String title;
+  final List<QueryDocumentSnapshot> submissions;
+  const SubmissionListScreen({
+    super.key,
+    required this.title,
+    required this.submissions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Submissions for $title',
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        //automaticallyImplyLeading: false,
+      ),
+      body: ListView.builder(
+        itemCount: submissions.length,
+        itemBuilder: (context, index) {
+          final data = submissions[index].data() as Map<String, dynamic>;
+          return Card(
+            margin: const EdgeInsets.all(8),
+            child: ListTile(
+              title: Text(data['role'] ?? 'No Role'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(data['description'] ?? ''),
+                  if (data['videoUrl'] != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4.0),
+                      child: GestureDetector(
+                        onTap: () async {
+                          final videoUrl = data['videoUrl'];
+                          if (videoUrl != null) {
+                            showDialog(
+                              context: context,
+                              builder:
+                                  (context) => Center(
+                                    child: VideoDialog(videoUrl: videoUrl),
+                                  ),
+                            );
+                          }
+                        },
+                        child: const Text(
+                          'View Video',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  FutureBuilder<DocumentSnapshot>(
+                    future:
+                        FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(data['userId'])
+                            .get(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Text('Loading user info...');
+                      }
+                      if (!snapshot.hasData || !snapshot.data!.exists) {
+                        return const Text('User info not found');
+                      }
+                      final user =
+                          snapshot.data!.data() as Map<String, dynamic>;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Name: ${user['name'] ?? ''}'),
+                          Text('Email: ${user['email'] ?? ''}'),
+                        ],
+                      );
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) =>
+                                        ReadOnlyProfile(userId: data['userId']),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'View Profile',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (value) async {
+                            final newStatus = await showDialog<String>(
+                              context: context,
+                              builder: (context) {
+                                String selectedStatus =
+                                    data['status'] ?? 'pending';
+                                return AlertDialog(
+                                  title: const Text('Update Status'),
+                                  content: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      RadioListTile<String>(
+                                        title: const Text('Reviewed'),
+                                        value: 'Reviewed',
+                                        groupValue: selectedStatus,
+                                        onChanged: (value) {
+                                          selectedStatus = value!;
+                                          Navigator.of(context).pop(value);
+                                        },
+                                      ),
+                                      RadioListTile<String>(
+                                        title: const Text('Selected'),
+                                        value: 'Selected',
+                                        groupValue: selectedStatus,
+                                        onChanged: (value) {
+                                          selectedStatus = value!;
+                                          Navigator.of(context).pop(value);
+                                        },
+                                      ),
+                                      RadioListTile<String>(
+                                        title: const Text('Rejected'),
+                                        value: 'Rejected',
+                                        groupValue: selectedStatus,
+                                        onChanged: (value) {
+                                          selectedStatus = value!;
+                                          Navigator.of(context).pop(value);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.of(context).pop(),
+                                      child: const Text('Cancel'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                            if (newStatus != null &&
+                                newStatus != data['status']) {
+                              await FirebaseFirestore.instance
+                                  .collection('submissions')
+                                  .doc(submissions[index].id)
+                                  .update({'status': newStatus});
+
+                              // Fetch the userId from the submission
+                              final userId = data['userId'];
+
+                              // Optionally, fetch the user's role to ensure they are an artist
+                              final userDoc =
+                                  await FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(userId)
+                                      .get();
+                              if (userDoc.exists &&
+                                  userDoc.data()?['role'] == 'Artist') {
+                                await FirebaseFirestore.instance
+                                    .collection('notifications')
+                                    .add({
+                                      'userId': userId,
+                                      'title': 'Application Status Updated',
+                                      'body':
+                                          'Your application for "${data['auditionTitle'] ?? 'an audition'}" is now "$newStatus".',
+                                      'timestamp': FieldValue.serverTimestamp(),
+                                      'read': false,
+                                    });
+
+                                // 2. Send FCM push notification
+                                final fcmToken = userDoc.data()?['fcmToken'];
+                                if (fcmToken != null) {
+                                  await sendPushNotification(
+                                    fcmToken,
+                                    'Application Status Updated',
+                                    'Your application for "${data['auditionTitle'] ?? 'an audition'}" is now "$newStatus".',
+                                  );
+                                }
+                              }
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Status updated to $newStatus'),
+                                ),
+                              );
+                            }
+                          },
+                          itemBuilder:
+                              (context) => [
+                                const PopupMenuItem(
+                                  value: 'status',
+                                  child: Text('Change Status'),
+                                ),
+                              ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+Future<void> sendPushNotification(
+  String token,
+  String title,
+  String body,
+) async {
+  const String serverKey =
+      'YOUR_SERVER_KEY_HERE'; // Replace with your FCM server key
+
+  await http.post(
+    Uri.parse('https://fcm.googleapis.com/fcm/send'),
+    headers: <String, String>{
+      'Content-Type': 'application/json',
+      'Authorization': 'key=$serverKey',
+    },
+    body: jsonEncode({
+      'to': token,
+      'notification': {'title': title, 'body': body},
+      'data': {'click_action': 'FLUTTER_NOTIFICATION_CLICK'},
+    }),
+  );
 }

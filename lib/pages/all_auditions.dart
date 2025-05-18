@@ -1,6 +1,7 @@
 import 'package:cue_cast_app/pages/apply_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:video_player/video_player.dart';
 
 class AllAuditionsScreen extends StatelessWidget {
   const AllAuditionsScreen({super.key});
@@ -13,9 +14,10 @@ class AllAuditionsScreen extends StatelessWidget {
           "All Auditions",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: const Color(0xFF2C3A47),
+        backgroundColor:  Colors.black,
         iconTheme: const IconThemeData(
           color: Colors.white, // Set the back arrow color to white
+
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -26,7 +28,7 @@ class AllAuditionsScreen extends StatelessWidget {
                   'timestamp',
                   descending: true,
                 ) // Fetch in descending order
-                .snapshots(),
+                .snapshots(),   
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -45,22 +47,42 @@ class AllAuditionsScreen extends StatelessWidget {
               auditionData['id'] = audition.id; // Add the Firestore doc ID
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: ListTile(
-                  title: Text(audition['title'] ?? "No Title"),
-                  subtitle: Text(audition['description'] ?? "No Description"),
-                  trailing: Text(audition['deadline'] ?? "No Deadline"),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => AuditionDetailsScreen(
+                child: Stack(
+                  children: [
+                    ListTile(
+                      title: Text(
+                        audition['title'] ?? "No Title",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(audition['description'] ?? "No Description"),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AuditionDetailsScreen(
                               auditionData: auditionData,
                             ),
-                      ),
-                    );
-                  },
+                          ),
+                        );
+                      },
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                     
+                        child: Text(
+                          audition['deadline'] ?? "No Deadline",
+                          style: const TextStyle(
+                            color: Colors.blueGrey,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                     // ),
+                    ),
+                  ],
                 ),
+                
               );
             },
           );
@@ -70,20 +92,46 @@ class AllAuditionsScreen extends StatelessWidget {
   }
 }
 
-class AuditionDetailsScreen extends StatelessWidget {
+class AuditionDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> auditionData;
 
   const AuditionDetailsScreen({super.key, required this.auditionData});
 
   @override
+  State<AuditionDetailsScreen> createState() => _AuditionDetailsScreenState();
+}
+
+class _AuditionDetailsScreenState extends State<AuditionDetailsScreen> {
+  VideoPlayerController? _videoController;
+  bool _showVideo = false;
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _playVideo(String url) async {
+    _videoController?.dispose();
+    _videoController = VideoPlayerController.network(url);
+    await _videoController!.initialize();
+    setState(() {
+      _showVideo = true;
+    });
+    _videoController!.play();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final auditionData = widget.auditionData;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           "Audition Details",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: const Color(0xFF2C3A47),
+        backgroundColor:  Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SingleChildScrollView(
@@ -119,13 +167,13 @@ class AuditionDetailsScreen extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade100,
+                    color: const Color.fromARGB(255, 89, 146, 101),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     auditionData['category'] ?? "Category",
                     style: const TextStyle(
-                      color: Colors.blue,
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -134,16 +182,37 @@ class AuditionDetailsScreen extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 // Project Description
-                Text(
-                  auditionData['description'] ?? "No Description",
-                  style: const TextStyle(fontSize: 16),
+                const Text(
+                  "Description",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                // Text(
+                //   auditionData['description'] ?? "No Description",
+                //   style: const TextStyle(fontSize: 16),
+                // ),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    auditionData['description'] ?? "No Description",
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ),
 
                 const SizedBox(height: 16),
 
                 // Contact Info
-                Text("Email: ${auditionData['email'] ?? 'N/A'}"),
-                Text("WhatsApp: ${auditionData['phone'] ?? 'N/A'}"),
+                const Text(
+                  "Email",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(" ${auditionData['email'] ?? 'N/A'}"),
+                //Text("WhatsApp: ${auditionData['phone'] ?? 'N/A'}"),
 
                 const SizedBox(height: 24),
 
@@ -164,6 +233,52 @@ class AuditionDetailsScreen extends StatelessWidget {
                     style: const TextStyle(fontSize: 16),
                   ),
                 ),
+                const SizedBox(height: 24),
+
+                // Roles
+                const Text(
+                  "Testscript",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    auditionData['instructions'] ?? "No Role Details",
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+// Watch Video Text
+if (auditionData['videoUrl'] != null && auditionData['videoUrl'].toString().isNotEmpty)
+  GestureDetector(
+    onTap: () async {
+      await _playVideo(auditionData['videoUrl']);
+    },
+    child: const Text(
+      "Watch Video",
+      style: TextStyle(
+        color: Colors.blue,
+        decoration: TextDecoration.underline,
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ),
+if (_showVideo && _videoController != null && _videoController!.value.isInitialized)
+  Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: AspectRatio(
+      aspectRatio: _videoController!.value.aspectRatio,
+      child: VideoPlayer(_videoController!),
+    ),
+  ),
+
 
                 const SizedBox(height: 16),
 
@@ -191,6 +306,12 @@ class AuditionDetailsScreen extends StatelessWidget {
                   "Duration:",
                   auditionData['duration'] ?? "Not Specified",
                 ),
+                const SizedBox(height: 8),
+                rowWithIcon(
+                  Icons.event,
+                  "Expiring On:",
+                  auditionData['deadline'] ?? "Not Specified",
+                ),
 
                 const SizedBox(height: 32),
 
@@ -212,7 +333,10 @@ class AuditionDetailsScreen extends StatelessWidget {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2C3A47),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 6,horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     child: const Text(
                       "Apply",
@@ -228,27 +352,27 @@ class AuditionDetailsScreen extends StatelessWidget {
               ],
             ),
             // Expiring On Badge (Top Right)
-            Positioned(
-              top: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade600,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  "Expiring On: ${auditionData['deadline'] ?? 'N/A'}",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
+            // Positioned(
+            //   top: 0,
+            //   right: 0,
+            //   child: Container(
+            //     padding: const EdgeInsets.symmetric(
+            //       horizontal: 8,
+            //       vertical: 5,
+            //     ),
+            //     decoration: BoxDecoration(
+            //       color: Colors.green.shade600,
+            //       borderRadius: BorderRadius.circular(14),
+            //     ),
+            //     child: Text(
+            //       "Expiring On: ${auditionData['deadline'] ?? 'N/A'}",
+            //       style: const TextStyle(
+            //         color: Colors.white,
+                    
+            //       ),
+            //     ),
+            //   ),
+            // ),
           ],
         ),
       ),
