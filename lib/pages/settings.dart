@@ -40,17 +40,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   List<Widget> _getSettingsTiles(String role) {
     final List<String> items = role == 'Artist'
-        ? ['Profile', 'Password', 'Applied', 'Theme', 'Log out']
-        : ['Profile', 'Password', 'Submissions', 'Theme', 'Log out'];
+        ? ['Profile',  'Applied',  'Log out']
+        : ['Profile',  'Submissions', 'Log out'];
     return items
-        .map((title) => Card(
-              margin: const EdgeInsets.symmetric(vertical: 6),
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: _buildSettingsTile(context, title),
-            ))
+        .map((title) => _buildSettingsTile(context, title))
         .toList();
   }
 

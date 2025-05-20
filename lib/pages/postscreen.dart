@@ -39,7 +39,7 @@ class _PostAuditionScreenState extends State<PostAuditionScreen> {
   String? _selectedCategory;
 
   File? _selectedVideo;
-  bool _isUploadingVideo = false;
+  final bool _isUploadingVideo = false;
   String? _videoUrl;
 
   Future<void> _postAudition() async {

@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cue_cast_app/main.dart'; // Adjust the path if needed
+// Adjust the path if needed
 import 'package:cue_cast_app/pages/home.dart';
 import 'package:cue_cast_app/pages/register.dart';
 import 'package:flutter/material.dart';
